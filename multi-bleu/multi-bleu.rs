@@ -33,23 +33,25 @@ fn main() -> io::Result<()> {
     let mut ref_index = 0;
 
     while let Ok(reference) = fs::read_to_string(format!("{}{}", stem, ref_index)) {
-        let mut reference_lines: Vec<String> = Vec::new();
-        for line in reference.lines() {
-            let line = if lowercase { line.to_lowercase() } else { line.to_string() };
-            reference_lines.push(line);
+        let reference_lines: Vec<String> = reference
+            .lines()
+            .map(|line| if lowercase { line.to_lowercase() } else { line.to_string() })
+            .collect();
+
+        if reference_lines.is_empty() {
+            break; // Stop reading when an empty reference is encountered
         }
+
         references.push(reference_lines);
         ref_index += 1;
     }
 
-    if references.is_empty() {
-        eprintln!("ERROR: could not find reference file {}", stem);
-        exit(1);
-    }
+
 
     let mut correct: Vec<u64> = vec![0; MAX_NGRAM];
-    let total: Vec<u64> = vec![0; MAX_NGRAM];
-    let (mut length_translation, mut length_reference) = (0, 0);
+    let mut total: Vec<u64> = vec![0; MAX_NGRAM]; // Make total mutable
+    let mut length_translation: usize = 0;
+    let mut length_reference: usize = 0;
     let mut sentence_index = 0;
 
     let stdin = io::stdin();
@@ -60,63 +62,40 @@ fn main() -> io::Result<()> {
         let sentence = if lowercase { line.to_lowercase() } else { line.to_string() };
         let words: Vec<&str> = sentence.trim().split_whitespace().collect();
 
-        let mut closest_diff = 9999;
-        let mut closest_length = 9999;
+        let (_, closest_length) = references[sentence_index]
+            .iter()
+            .map(|reference| {
+                let reference_words: Vec<&str> = reference.trim().split_whitespace().collect();
+                let length = reference_words.len() as isize;
+                (length, reference_words)
+            })
+            .min_by_key(|(length, _)| (words.len() as isize - length).abs())
+            .unwrap_or((9999, vec![]));
 
-        for reference in &references[sentence_index] {
-            let reference_words: Vec<&str> = reference.trim().split_whitespace().collect();
-            let length = reference_words.len();
-            let diff = (words.len() as isize - length as isize).abs();
+        for ref_sentence in references[sentence_index].iter() {
+            let reference_words: Vec<&str> = ref_sentence.trim().split_whitespace().collect();
 
-            if diff < closest_diff {
-                closest_diff = diff;
-                closest_length = length;
-            } else if diff == closest_diff {
-                closest_length = closest_length.min(length);
-            }
-
-            let mut ref_ngram = vec![0u64; MAX_NGRAM];
-            for n in 1..=MAX_NGRAM {
-                let mut ref_ngram_n = vec![0u64; MAX_NGRAM];
-                for _start in 0..=words.len() - n {
-                    //let ngram: String = (1..=n)
-                    //    .map(|i| words[_start + i - 1])
-                    //    .collect::<Vec<&str>>()
-                    //    .join(" ");
-                    ref_ngram_n[n - 1] += 1;
-                }
-                for (ngram, &count) in ref_ngram_n.iter().enumerate() {
-                    if ref_ngram[ngram] < count {
-                        ref_ngram[ngram] = count;
+            for ngram in 1..=MAX_NGRAM {
+                let mut ref_ngram = vec![0u64; MAX_NGRAM];
+                for start in 0..=words.len() - ngram {
+                    let ngram_words: Vec<&str> = words[start..start + ngram].to_vec();
+                    let ngram_string = ngram_words.join(" ");
+                    if reference_words.windows(ngram).any(|window| window.join(" ") == ngram_string) {
+                        ref_ngram[ngram - 1] += 1;
                     }
                 }
-            }
 
-            let mut t_ngram = vec![0u64; MAX_NGRAM];
-            for n in 1..=MAX_NGRAM {
-                let mut t_ngram_n = vec![0u64; MAX_NGRAM];
-                for _start in 0..=words.len() - n {
-                    //let ngram: String = (1..=n)
-                    //    .map(|i| words[_start + i - 1])
-                    //    .collect::<Vec<&str>>()
-                    //    .join(" ");
-                    t_ngram_n[n - 1] += 1;
+                for (i, &count) in ref_ngram.iter().enumerate() {
+                    correct[i] = correct[i].max(count);
                 }
-                for (ngram, &count) in t_ngram_n.iter().enumerate() {
-                    t_ngram[ngram] += count;
-                    if let Some(&ref_count) = ref_ngram.get(ngram) {
-                        if ref_count >= count {
-                            correct[n - 1] += count;
-                        } else {
-                            correct[n - 1] += ref_count;
-                        }
-                    }
-                }
+
+                total[ngram - 1] += ngram as u64;
             }
         }
 
         length_translation += words.len();
-        length_reference += closest_length;
+        length_reference += closest_length.len();
+
         sentence_index += 1;
         line.clear();
     }
@@ -127,15 +106,15 @@ fn main() -> io::Result<()> {
         1.0
     };
 
-    let mut bleu_scores: Vec<f64> = vec![0.0; MAX_NGRAM];
-
-    for n in 1..=MAX_NGRAM {
-        if total[n - 1] > 0 {
-            bleu_scores[n - 1] = correct[n - 1] as f64 / total[n - 1] as f64;
-        } else {
-            bleu_scores[n - 1] = 0.0;
-        }
-    }
+    let bleu_scores: Vec<f64> = (1..=MAX_NGRAM)
+        .map(|n| {
+            if total[n - 1] > 0 {
+                correct[n - 1] as f64 / total[n - 1] as f64
+            } else {
+                0.0
+            }
+        })
+        .collect();
 
     let bleu = brevity_penalty
         * (bleu_scores.iter().sum::<f64>() / (MAX_NGRAM as f64)).exp();
