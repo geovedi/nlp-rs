@@ -35,7 +35,13 @@ fn main() -> io::Result<()> {
     while let Ok(reference) = fs::read_to_string(format!("{}{}", stem, ref_index)) {
         let reference_lines: Vec<String> = reference
             .lines()
-            .map(|line| if lowercase { line.to_lowercase() } else { line.to_string() })
+            .map(|line| {
+                if lowercase {
+                    line.to_lowercase()
+                } else {
+                    line.to_string()
+                }
+            })
             .collect();
 
         if reference_lines.is_empty() {
@@ -45,8 +51,6 @@ fn main() -> io::Result<()> {
         references.push(reference_lines);
         ref_index += 1;
     }
-
-
 
     let mut correct: Vec<u64> = vec![0; MAX_NGRAM];
     let mut total: Vec<u64> = vec![0; MAX_NGRAM]; // Make total mutable
@@ -59,7 +63,11 @@ fn main() -> io::Result<()> {
     let mut line = String::new();
 
     while stdin_lock.read_line(&mut line)? > 0 {
-        let sentence = if lowercase { line.to_lowercase() } else { line.to_string() };
+        let sentence = if lowercase {
+            line.to_lowercase()
+        } else {
+            line.to_string()
+        };
         let words: Vec<&str> = sentence.trim().split_whitespace().collect();
 
         let (_, closest_length) = references[sentence_index]
@@ -80,7 +88,10 @@ fn main() -> io::Result<()> {
                 for start in 0..=words.len() - ngram {
                     let ngram_words: Vec<&str> = words[start..start + ngram].to_vec();
                     let ngram_string = ngram_words.join(" ");
-                    if reference_words.windows(ngram).any(|window| window.join(" ") == ngram_string) {
+                    if reference_words
+                        .windows(ngram)
+                        .any(|window| window.join(" ") == ngram_string)
+                    {
                         ref_ngram[ngram - 1] += 1;
                     }
                 }
@@ -116,8 +127,7 @@ fn main() -> io::Result<()> {
         })
         .collect();
 
-    let bleu = brevity_penalty
-        * (bleu_scores.iter().sum::<f64>() / (MAX_NGRAM as f64)).exp();
+    let bleu = brevity_penalty * (bleu_scores.iter().sum::<f64>() / (MAX_NGRAM as f64)).exp();
 
     println!(
         "BLEU = {:.2}, {:.1}/{:.1}/{:.1}/{:.1} (BP={:.3}, ratio={:.3}, hyp_len={}, ref_len={})",
