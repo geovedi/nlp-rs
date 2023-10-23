@@ -110,7 +110,11 @@ fn process(block: &[String]) {
                 if let Some(last) = phrases.last() {
                     let start = *last;
                     let end = i + 1;
-                    println!("{0}\t{1}", label, &sentence[offsets[start].0..offsets[end - 1].1]);
+                    println!(
+                        "{0}\t{1}",
+                        label,
+                        &sentence[offsets[start].0..offsets[end - 1].1]
+                    );
                 }
                 phrases.clear();
             }
@@ -133,7 +137,11 @@ fn process(block: &[String]) {
                 if let Some(last) = phrases.last() {
                     let start = *last;
                     let end = i + 1;
-                    println!("{0}\t{1}", label, &sentence[offsets[start].0..offsets[end - 1].1]);
+                    println!(
+                        "{0}\t{1}",
+                        label,
+                        &sentence[offsets[start].0..offsets[end - 1].1]
+                    );
                 }
                 phrases.clear();
             }
@@ -159,7 +167,11 @@ fn process(block: &[String]) {
                     if let Some(last) = phrases.last() {
                         let start = *last;
                         let end = i + 1;
-                        println!("{0}\t{1}", label, &sentence[offsets[start].0..offsets[end - 1].1]);
+                        println!(
+                            "{0}\t{1}",
+                            label,
+                            &sentence[offsets[start].0..offsets[end - 1].1]
+                        );
                     }
                     phrases.clear();
                 }
