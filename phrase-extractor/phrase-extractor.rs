@@ -1,13 +1,16 @@
+use std::convert::TryInto;
 use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::str::FromStr;
-use std::convert::TryInto;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 4 {
-        eprintln!("Usage: {} input_file alignment_file output_file [max_ngram]", args[0]);
+        eprintln!(
+            "Usage: {} input_file alignment_file output_file [max_ngram]",
+            args[0]
+        );
         std::process::exit(1);
     }
 
@@ -15,7 +18,8 @@ fn main() -> io::Result<()> {
     let alignment_file = &args[2];
     let output_file = &args[3];
 
-    let max_ngram = args.get(4)
+    let max_ngram = args
+        .get(4)
         .map(|max_ngram_str| u32::from_str(max_ngram_str).unwrap_or(10))
         .unwrap_or(10);
 
@@ -54,16 +58,24 @@ where
         }
 
         for (a, b) in phrase_extraction(parts[0], parts[1], &target) {
-            let a_tokens = whitespace_tokenizer(&a);
-            let b_tokens = whitespace_tokenizer(&b);
+            let a_tokens = a.split_whitespace().collect::<Vec<&str>>();
+            let b_tokens = b.split_whitespace().collect::<Vec<&str>>();
 
             let a_len = a_tokens.len();
             let b_len = b_tokens.len();
 
-            if 1 <= a_len as u32 && a_len as u32 <= max_ngram
-                && 1 <= b_len as u32 && b_len as u32 <= max_ngram
+            if 1 <= a_len as u32
+                && a_len as u32 <= max_ngram
+                && 1 <= b_len as u32
+                && b_len as u32 <= max_ngram
             {
-                writeln!(output_f, "{} ||| {}", a_tokens.join(" "), b_tokens.join(" ")).unwrap();
+                writeln!(
+                    output_f,
+                    "{} ||| {}",
+                    a_tokens.join(" "),
+                    b_tokens.join(" ")
+                )
+                .unwrap();
             }
         }
     }
@@ -75,19 +87,12 @@ fn convert_alignment(a: &str) -> Vec<(i32, i32)> {
         .map(|x| {
             let parts: Vec<&str> = x.split('-').collect();
             if parts.len() == 2 {
-                (
-                    parts[0].parse().unwrap_or(0),
-                    parts[1].parse().unwrap_or(0),
-                )
+                (parts[0].parse().unwrap_or(0), parts[1].parse().unwrap_or(0))
             } else {
                 (0, 0)
             }
         })
         .collect()
-}
-
-fn whitespace_tokenizer<'a>(text: &'a str) -> Vec<&'a str> {
-    text.split_whitespace().collect()
 }
 
 fn phrase_extraction(srctext: &str, trgtext: &str, alignment: &str) -> Vec<(String, String)> {
@@ -108,7 +113,11 @@ fn phrase_extraction(srctext: &str, trgtext: &str, alignment: &str) -> Vec<(Stri
             let mut f_end = -1i32;
 
             for &(e, f) in &alignment_vec {
-                if e_start as i32 <= e && e <= e_end as i32 && f_start <= f && f <= f_end.try_into().unwrap() {
+                if e_start as i32 <= e
+                    && e <= e_end as i32
+                    && f_start <= f
+                    && f <= f_end.try_into().unwrap()
+                {
                     f_start = f_start.min(f);
                     f_end = f_end.max(f);
                 }
@@ -124,7 +133,8 @@ fn phrase_extraction(srctext: &str, trgtext: &str, alignment: &str) -> Vec<(Stri
                         let mut fe = f_end;
                         while fe < trglen as i32 {
                             let src_phrase: String = src_tokens[e_start..=e_end].join(" ");
-                            let trg_phrase: String = trg_tokens[f_start as usize..=fe as usize].join(" ");
+                            let trg_phrase: String =
+                                trg_tokens[f_start as usize..=fe as usize].join(" ");
                             extracted_phrases.push((src_phrase, trg_phrase));
                             fe += 1;
                             if f_aligned.contains(&(fe as i32)) || fe == trglen as i32 {
